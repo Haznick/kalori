@@ -1,108 +1,117 @@
 import streamlit as st
-import matplotlib.pyplot as plt
+import math
 
-# MET values
+# -----------------------------
+# 1. Data & Fungsi BMI
+# -----------------------------
+bmi_standards = {
+    "WHO / Europe": [
+        (18.5, "Underweight"),
+        (24.9, "Normal"),
+        (29.9, "Overweight"),
+        (100, "Obese")
+    ],
+    "Asia / SEA": [
+        (18.5, "Underweight"),
+        (22.9, "Normal"),
+        (24.9, "Overweight (At risk)"),
+        (29.9, "Obese I"),
+        (100, "Obese II")
+    ],
+    "China": [
+        (18.5, "Underweight"),
+        (23.9, "Normal"),
+        (27.9, "Overweight"),
+        (100, "Obese")
+    ]
+}
+
+def classify_bmi(bmi, standard):
+    for threshold, category in bmi_standards[standard]:
+        if bmi <= threshold:
+            return category
+    return "Undefined"
+
+# -----------------------------
+# 2. Data & Fungsi Kalori
+# -----------------------------
+def calorie_calculator(current_weight, target_weight, duration_days):
+    # anggaran 7700 kcal per 1kg
+    total_loss = current_weight - target_weight
+    total_calories = total_loss * 7700
+    per_day = total_calories / duration_days if duration_days > 0 else 0
+    return total_calories, per_day
+
 activities = {
     "Outdoor": {
-        "Brisk Walk": 4.3,
-        "Jogging": 7.0,
-        "Cycling": 6.8
+        "Jogging (8 km/h)": 480,   # kcal/jam untuk 70kg
+        "Brisk Walk (5 km/h)": 280,
+        "Cycling (15 km/h)": 400
     },
-    "Indoor (No Equipment)": {
-        "Jump Rope": 12.0,
-        "Jumping Jack": 8.0,
-        "Squat (Bodyweight)": 5.0,
-        "Plank": 3.0,
-        "HIIT Bodyweight": 8.5,
-        "Zumba/Aerobic": 7.0
+    "Indoor (no equipment)": {
+        "Jumping Jack": 100,
+        "Squat": 80,
+        "Plank": 60
     },
-    "Indoor (With Equipment)": {
-        "Treadmill Walk": 4.3,
-        "Rowing Machine": 6.0,
-        "Stationary Bike": 5.5
+    "Indoor (with equipment)": {
+        "Treadmill (6 km/h)": 300,
+        "Elliptical": 350,
+        "Rowing Machine": 400
     }
 }
 
-def calories_burned(met, weight, minutes):
-    return (met * 3.5 * weight / 200) * minutes
+def calories_burned(activity_cal_per_hour, duration_min, weight):
+    # Anggaran linear ikut berat user
+    return activity_cal_per_hour * (duration_min / 60) * (weight / 70)
 
-def calorie_calculator(current_weight, target_loss, days):
-    total_cal_deficit = target_loss * 7700
-    daily_cal_deficit = total_cal_deficit / days
-    return daily_cal_deficit
+# -----------------------------
+# 3. Streamlit UI
+# -----------------------------
+st.title("🏃 Health & Fitness App")
+st.write("Kira BMI dan sasaran kalori untuk kurangkan berat badan.")
 
+menu = st.sidebar.radio("Pilih modul", ["📊 BMI Calculator", "🔥 Calorie & Exercise Planner"])
 
-# ----------------- Streamlit UI -----------------
-st.title("🔥 Advanced Calorie Burn Calculator")
-st.write("Kira kalori defisit harian + pilih aktiviti & lihat ranking senaman indoor.")
+# -----------------------------
+# Modul 1: BMI
+# -----------------------------
+if menu == "📊 BMI Calculator":
+    st.header("📊 Kalkulator BMI")
 
-# Session state untuk simpan pilihan user
-if "calorie_deficit" not in st.session_state:
-    st.session_state.calorie_deficit = None
+    age = st.number_input("Umur", min_value=10, max_value=100, value=25, step=1)
+    gender = st.radio("Jantina", ["Lelaki", "Perempuan"])
+    height = st.number_input("Tinggi (cm)", min_value=100, max_value=220, value=170, step=1)
+    weight = st.number_input("Berat (kg)", min_value=30, max_value=200, value=70, step=1)
+    standard = st.selectbox("Pilih standard BMI", list(bmi_standards.keys()))
 
-# Input asas
-current_weight = st.number_input("Berat sekarang (kg)", min_value=30, max_value=200, value=70, step=1)
-target_loss = st.number_input("Berapa kg nak turun", min_value=1, max_value=50, value=5, step=1)
-days = st.number_input("Target dalam berapa hari", min_value=7, max_value=365, value=60, step=1)
+    if st.button("Kira BMI"):
+        bmi = weight / ((height/100) ** 2)
+        category = classify_bmi(bmi, standard)
 
-if st.button("Kira Defisit"):
-    st.session_state.calorie_deficit = calorie_calculator(current_weight, target_loss, days)
+        st.success(f"BMI anda: **{bmi:.1f}**")
+        st.info(f"Kategori ({standard}): **{category}**")
+        st.write(f"Umur: {age} tahun | Jantina: {gender}")
 
-# Hanya teruskan kalau dah kira defisit
-if st.session_state.calorie_deficit:
-    daily_cal_deficit = st.session_state.calorie_deficit
-    st.subheader("🎯 Hasil Pengiraan")
-    st.write(f"👉 Perlu defisit: **{daily_cal_deficit:.0f} kcal sehari**")
+# -----------------------------
+# Modul 2: Calorie & Exercise Planner
+# -----------------------------
+if menu == "🔥 Calorie & Exercise Planner":
+    st.header("🔥 Kalkulator Kalori & Aktiviti Senaman")
 
-    # Pilih aktiviti
-    st.subheader("📌 Pilih Aktiviti")
-    category = st.selectbox("Kategori aktiviti:", list(activities.keys()))
-    act_choice = st.selectbox("Aktiviti:", list(activities[category].keys()))
+    current_weight = st.number_input("Berat sekarang (kg)", 30, 200, 70)
+    target_weight = st.number_input("Berat sasaran (kg)", 30, 200, 65)
+    duration_days = st.number_input("Tempoh sasaran (hari)", 1, 365, 30)
 
-    # Input masa
-    minutes = st.number_input("Masa aktiviti (minit)", min_value=10, max_value=180, value=30, step=5)
+    if st.button("Kira Kalori Harian"):
+        total_cal, per_day = calorie_calculator(current_weight, target_weight, duration_days)
 
-    # Outdoor: boleh pilih jarak
-    if category == "Outdoor":
-        km = st.number_input("Anggaran jarak (km)", min_value=0.0, max_value=50.0, value=0.0, step=0.1)
-        if km > 0:
-            # kira masa semula ikut pace
-            if act_choice == "Brisk Walk":
-                pace = 5.5
-            elif act_choice == "Jogging":
-                pace = 8.5
-            else:
-                pace = 15.0
-            minutes = (km / pace) * 60
+        st.success(f"Jumlah kalori perlu dibakar: {total_cal:,.0f} kcal")
+        st.info(f"Purata sehari: {per_day:,.0f} kcal")
 
-    # Kiraan kalori
-    kcal_burn = calories_burned(activities[category][act_choice], current_weight, minutes)
-    sesi = daily_cal_deficit / kcal_burn
-
-    st.success(f"{act_choice} selama {minutes:.0f} min → terbakar **{kcal_burn:.0f} kcal**")
-    st.info(f"👉 Untuk capai defisit {daily_cal_deficit:.0f} kcal, perlu ~ **{sesi:.1f} sesi** sehari")
-
-    # Ranking senaman indoor
-    if category == "Indoor (No Equipment)":
-        st.subheader("💪 Ranking Senaman Indoor (30 min)")
-        ranking = []
-        for ex, met in activities["Indoor (No Equipment)"].items():
-            kcal = calories_burned(met, current_weight, 30)
-            ranking.append((ex, kcal))
-        ranking.sort(key=lambda x: x[1], reverse=True)
-
-        # Senarai teks
-        for ex, kcal in ranking:
-            st.write(f"- {ex}: **{kcal:.0f} kcal/30 min**")
-
-        # Graf bar
-        st.subheader("📊 Visual Ranking")
-        ex_names = [x[0] for x in ranking]
-        kcal_vals = [x[1] for x in ranking]
-
-        fig, ax = plt.subplots()
-        ax.barh(ex_names, kcal_vals)
-        ax.invert_yaxis()
-        ax.set_xlabel("Kalori (kcal)")
-        ax.set_title("Kalori terbakar (30 min)")
-        st.pyplot(fig)
+        st.subheader("Cadangan Aktiviti Senaman")
+        for category, acts in activities.items():
+            st.write(f"**{category}**")
+            for act, kcal in acts.items():
+                cal_burn = calories_burned(kcal, 30, current_weight)
+                sessions = math.ceil(per_day / cal_burn) if cal_burn > 0 else 0
+                st.write(f"- {act}: ~{cal_burn:.0f} kcal / 30 min → perlu **{sessions} sesi** sehari")
