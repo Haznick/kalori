@@ -1,8 +1,9 @@
 import streamlit as st
 import math
+import matplotlib.pyplot as plt
 
 # -----------------------------
-# 1. Data & Fungsi BMI
+# BMI Standard
 # -----------------------------
 bmi_standards = {
     "WHO / Europe": [
@@ -33,85 +34,122 @@ def classify_bmi(bmi, standard):
     return "Undefined"
 
 # -----------------------------
-# 2. Data & Fungsi Kalori
+# Kalori & Aktiviti
 # -----------------------------
 def calorie_calculator(current_weight, target_weight, duration_days):
-    # anggaran 7700 kcal per 1kg
     total_loss = current_weight - target_weight
-    total_calories = total_loss * 7700
+    total_calories = total_loss * 7700  # 1kg ≈ 7700 kcal
     per_day = total_calories / duration_days if duration_days > 0 else 0
     return total_calories, per_day
 
 activities = {
     "Outdoor": {
-        "Jogging (8 km/h)": 480,   # kcal/jam untuk 70kg
-        "Brisk Walk (5 km/h)": 280,
-        "Cycling (15 km/h)": 400
+        "Jogging (8 km/h)": {"kcal_per_hour": 480, "per_km": 60},
+        "Brisk Walk (5 km/h)": {"kcal_per_hour": 280, "per_km": 50},
+        "Cycling (15 km/h)": {"kcal_per_hour": 400, "per_km": 30}
     },
     "Indoor (no equipment)": {
-        "Jumping Jack": 100,
-        "Squat": 80,
-        "Plank": 60
+        "Jumping Jack": {"kcal_per_hour": 600},
+        "Squat": {"kcal_per_hour": 480},
+        "Plank": {"kcal_per_hour": 240}
     },
     "Indoor (with equipment)": {
-        "Treadmill (6 km/h)": 300,
-        "Elliptical": 350,
-        "Rowing Machine": 400
+        "Treadmill (6 km/h)": {"kcal_per_hour": 300},
+        "Elliptical": {"kcal_per_hour": 350},
+        "Rowing Machine": {"kcal_per_hour": 400}
     }
 }
 
-def calories_burned(activity_cal_per_hour, duration_min, weight):
-    # Anggaran linear ikut berat user
-    return activity_cal_per_hour * (duration_min / 60) * (weight / 70)
+def calories_burned(kcal_per_hour, duration_min, weight):
+    return kcal_per_hour * (duration_min / 60) * (weight / 70)
 
 # -----------------------------
-# 3. Streamlit UI
+# Streamlit UI
 # -----------------------------
 st.title("🏃 Health & Fitness App")
-st.write("Kira BMI dan sasaran kalori untuk kurangkan berat badan.")
+st.write("Gabungan Kalkulator BMI + Kalori + Multi-Aktiviti Senaman")
 
-menu = st.sidebar.radio("Pilih modul", ["📊 BMI Calculator", "🔥 Calorie & Exercise Planner"])
+# Input Asas
+age = st.number_input("Umur", min_value=10, max_value=100, value=25, step=1)
+gender = st.radio("Jantina", ["Lelaki", "Perempuan"])
+height = st.number_input("Tinggi (cm)", min_value=100, max_value=220, value=170, step=1)
+weight = st.number_input("Berat sekarang (kg)", 30, 200, 70)
+target_weight = st.number_input("Berat sasaran (kg)", 30, 200, 65)
+duration_days = st.number_input("Tempoh sasaran (hari)", 1, 365, 30)
+standard = st.selectbox("Pilih standard BMI", list(bmi_standards.keys()))
 
-# -----------------------------
-# Modul 1: BMI
-# -----------------------------
-if menu == "📊 BMI Calculator":
-    st.header("📊 Kalkulator BMI")
+if st.button("Kira BMI & Kalori"):
+    # Kiraan BMI
+    bmi = weight / ((height/100) ** 2)
+    category = classify_bmi(bmi, standard)
+    st.subheader("📊 Hasil BMI")
+    st.success(f"BMI anda: **{bmi:.1f}**")
+    st.info(f"Kategori ({standard}): **{category}**")
+    st.write(f"Umur: {age} tahun | Jantina: {gender}")
 
-    age = st.number_input("Umur", min_value=10, max_value=100, value=25, step=1)
-    gender = st.radio("Jantina", ["Lelaki", "Perempuan"])
-    height = st.number_input("Tinggi (cm)", min_value=100, max_value=220, value=170, step=1)
-    weight = st.number_input("Berat (kg)", min_value=30, max_value=200, value=70, step=1)
-    standard = st.selectbox("Pilih standard BMI", list(bmi_standards.keys()))
+    # Kiraan Kalori
+    total_cal, per_day = calorie_calculator(weight, target_weight, duration_days)
+    st.subheader("🔥 Kiraan Kalori")
+    st.success(f"Jumlah kalori perlu dibakar: {total_cal:,.0f} kcal")
+    st.info(f"Purata sehari: {per_day:,.0f} kcal")
 
-    if st.button("Kira BMI"):
-        bmi = weight / ((height/100) ** 2)
-        category = classify_bmi(bmi, standard)
+    # Multi Aktiviti
+    st.subheader("🏋️ Pilih Sehingga 5 Aktiviti Senaman")
 
-        st.success(f"BMI anda: **{bmi:.1f}**")
-        st.info(f"Kategori ({standard}): **{category}**")
-        st.write(f"Umur: {age} tahun | Jantina: {gender}")
+    total_burned = 0
+    activity_results = []
 
-# -----------------------------
-# Modul 2: Calorie & Exercise Planner
-# -----------------------------
-if menu == "🔥 Calorie & Exercise Planner":
-    st.header("🔥 Kalkulator Kalori & Aktiviti Senaman")
+    for i in range(1, 6):
+        with st.expander(f"Aktiviti {i}"):
+            category_choice = st.selectbox(f"Kategori Aktiviti {i}", list(activities.keys()), key=f"cat{i}")
+            activity_choice = st.selectbox(f"Aktiviti {i}", list(activities[category_choice].keys()), key=f"act{i}")
+            duration_min = st.slider(f"Tempoh (minit) {i}", 10, 120, 30, key=f"dur{i}")
 
-    current_weight = st.number_input("Berat sekarang (kg)", 30, 200, 70)
-    target_weight = st.number_input("Berat sasaran (kg)", 30, 200, 65)
-    duration_days = st.number_input("Tempoh sasaran (hari)", 1, 365, 30)
+            distance_km = None
+            if category_choice == "Outdoor" and "per_km" in activities[category_choice][activity_choice]:
+                distance_km = st.slider(f"Jarak (km) {i}", 1, 20, 5, key=f"dist{i}")
 
-    if st.button("Kira Kalori Harian"):
-        total_cal, per_day = calorie_calculator(current_weight, target_weight, duration_days)
+            kcal_info = activities[category_choice][activity_choice]
+            kcal_hour = kcal_info["kcal_per_hour"]
 
-        st.success(f"Jumlah kalori perlu dibakar: {total_cal:,.0f} kcal")
-        st.info(f"Purata sehari: {per_day:,.0f} kcal")
+            if distance_km:
+                cal_burn = kcal_info["per_km"] * distance_km * (weight / 70)
+            else:
+                cal_burn = calories_burned(kcal_hour, duration_min, weight)
 
-        st.subheader("Cadangan Aktiviti Senaman")
-        for category, acts in activities.items():
-            st.write(f"**{category}**")
-            for act, kcal in acts.items():
-                cal_burn = calories_burned(kcal, 30, current_weight)
-                sessions = math.ceil(per_day / cal_burn) if cal_burn > 0 else 0
-                st.write(f"- {act}: ~{cal_burn:.0f} kcal / 30 min → perlu **{sessions} sesi** sehari")
+            total_burned += cal_burn
+            activity_results.append((activity_choice, cal_burn))
+
+    # Hasil Multi Aktiviti
+    st.subheader("📋 Ringkasan Aktiviti")
+    st.write(f"Jumlah kalori terbakar: **{total_burned:.0f} kcal**")
+    remaining = per_day - total_burned
+
+    # Progress bar
+    progress = min(total_burned / per_day, 1.0) if per_day > 0 else 0
+    st.progress(progress)
+    st.write(f"✅ Pencapaian: {progress*100:.1f}% daripada target harian")
+
+    if remaining > 0:
+        st.warning(f"Masih perlu bakar: **{remaining:.0f} kcal**")
+    else:
+        st.success("🎉 Target kalori harian sudah dicapai dengan aktiviti terpilih!")
+
+    # Berapa sesi diperlukan untuk cover baki
+    if remaining > 0:
+        st.subheader("🔄 Sesi Tambahan Diperlukan")
+        for act, cal in activity_results:
+            if cal > 0:
+                sessions = math.ceil(remaining / cal)
+                st.info(f"Jika guna {act} sahaja → perlu **{sessions} sesi tambahan**")
+
+    # Pie chart visual
+    if activity_results:
+        st.subheader("📊 Pecahan Aktiviti (Pie Chart)")
+        labels = [a for a, _ in activity_results]
+        values = [c for _, c in activity_results]
+
+        fig, ax = plt.subplots()
+        ax.pie(values, labels=labels, autopct="%1.1f%%")
+        ax.set_title("Sumbangan Kalori Terbakar Mengikut Aktiviti")
+        st.pyplot(fig)
